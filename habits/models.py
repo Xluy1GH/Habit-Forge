@@ -4,18 +4,17 @@ from django.utils import timezone
 
 from django_celery_beat.models import IntervalSchedule, PeriodicTask
 
+import json
+
 class Habit(models.Model):
-    "Habit with repetition frequency"
-
+    # Habit with repetition frequency
     title = models.CharField(max_length=50)
-
-    description = models.TextField(max_length=200)
-
+    description = models.TextField()
     creator = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE
     )
-
+    pub_date = models.DateTimeField(default=timezone.now)
 
     # Linking the frequency from the model to the django-celery-beat scheduler periods
     class Frequency(models.TextChoices):
@@ -34,9 +33,6 @@ class Habit(models.Model):
     }
 
 
-    # participants = models.ManyToManyField(settings.AUTH_USER_MODEL)
-    pub_date = models.DateTimeField(default=timezone.now())
-
     
     def save(self, *args, **kwargs):
         is_new = self.pk is None
@@ -48,11 +44,36 @@ class Habit(models.Model):
                 **self.CELERY_SCHEDULE_MAP[self.frequency]
             )
 
+            task_kwargs = json.dumps({'habit_id': self.id})
+
             PeriodicTask.objects.create(
                 interval=schedule,
-                name="Send telegram message",
+                name=f"Habit {self.id} Notify {self.title}",
                 task="habits.tasks.send_telegram_message",
+                kwargs=task_kwargs,
             )
 
     def __str__(self):
         return self.title
+
+class UserHabit(models.Model):
+    # An intermediate model between user and habit
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="user_habits",
+        )
+    habit = models.ForeignKey(
+        Habit,
+        on_delete=models.CASCADE,
+        related_name="followers",
+        )
+
+    # User's statistics
+    current_streak = models.IntegerField(default=0)
+    max_streak = models.IntegerField(default=0)
+    date_joined = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username}, {self.habit.title}"
+    
