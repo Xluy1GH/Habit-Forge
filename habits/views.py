@@ -1,5 +1,6 @@
 from django.shortcuts import render
 import requests
+from django.views.generic import TemplateView
 
 def send_telegram_message(request):
     "Sends a message on Telegram and show status code and text of post"
@@ -14,3 +15,6 @@ def send_telegram_message(request):
     response = requests.post(url, data=payload)
 
     return render(request, "test_message.html", context={"status_code": response.status_code, "text": response.text})
+
+class HomeView(TemplateView):
+    template_name = "home.html"
